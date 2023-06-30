@@ -6,17 +6,12 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/NamelessOne91/coso/command"
 	"github.com/NamelessOne91/coso/filesystem"
 )
 
-const (
-	hostname = "coso"
-)
-
-// Flags is the bit pattern passed to the clone syscall to create new namespaces
-var Flags uintptr = syscall.CLONE_NEWNS | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC |
-	syscall.CLONE_NEWPID | syscall.CLONE_NEWNET | syscall.CLONE_NEWUSER
-
+// InitNamespaces performs the set of necessary syscalls allowing to run
+// a child process in its own isolated namespace(s)
 func InitNamespaces() {
 	newrootPath := os.Args[1]
 
@@ -25,12 +20,14 @@ func InitNamespaces() {
 		os.Exit(1)
 	}
 
+	// the pivot_root syscall must happen inside the new mount namespace
+	// otherwise, you'll end up changing the host's /
 	if err := filesystem.PivotRoot(newrootPath); err != nil {
 		fmt.Printf("Error running pivot_root - %s\n", err)
 		os.Exit(1)
 	}
 
-	if err := syscall.Sethostname([]byte(hostname)); err != nil {
+	if err := syscall.Sethostname([]byte("coso")); err != nil {
 		fmt.Printf("Error setting hostname - %s\n", err)
 		os.Exit(1)
 	}
@@ -38,14 +35,11 @@ func InitNamespaces() {
 	nsRun()
 }
 
+// nsRun starts the system shell inside the namespace
 func nsRun() {
 	cmd := exec.Command("/bin/sh")
 
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	cmd.Env = []string{fmt.Sprintf("PS1=-[%s]- # ", hostname)}
+	command.SetupProcessEnv(cmd)
 
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Error running the /bin/sh command - %s\n", err)
