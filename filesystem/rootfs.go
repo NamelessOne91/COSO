@@ -11,7 +11,9 @@ const (
 	DefaultRootfsPath = "/tmp/coso/rootfs"
 )
 
-// the pivot_root syscall has some requirements:
+// PivotRoot executes a pivot_root syscall, setting a new root filesystem for the calling process
+//
+// A pivot_root syscall has some requirements:
 //  1. They must both be directories
 //  2. They must not be on the same filesystem as the current root
 //  3. putold must be underneath newroot
@@ -64,6 +66,11 @@ func PivotRoot(newroot string) error {
 	return nil
 }
 
+// MountProc executes a mount syscallmount, mounting the proc filesystem at mountpoint (default is /proc).
+//
+// This is useful when creating a new PID namespace.
+// MountProc should not be executed inside the default/global namespace since the /proc mount would
+// otherwise mess up existing programs on the system.
 func MountProc(newroot string) error {
 	source := "proc"
 	target := filepath.Join(newroot, "/proc")
@@ -82,6 +89,7 @@ func MountProc(newroot string) error {
 	return err
 }
 
+// VerifyRootfsExists checks a valid root filesystem to use as lower layer has been provided
 func VerifyRootfsExists(rootfsPath string) {
 	if _, err := os.Stat(rootfsPath); os.IsNotExist(err) {
 		errorMsg := fmt.Sprintf(
