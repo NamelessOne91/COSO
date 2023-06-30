@@ -8,12 +8,11 @@ import (
 	"github.com/NamelessOne91/coso/command"
 	"github.com/NamelessOne91/coso/filesystem"
 	"github.com/NamelessOne91/coso/namespaces"
-	"github.com/docker/docker/pkg/reexec"
 )
 
 func init() {
-	reexec.Register("nsInit", namespaces.InitNamespaces)
-	if reexec.Init() {
+	command.Register("nsInit", namespaces.InitNamespaces)
+	if command.Init() {
 		// avoid infinite loops of the program rexec-uting itself
 		os.Exit(0)
 	}
@@ -28,9 +27,7 @@ func main() {
 
 	// rexec is used to bypass forking limitations of Go
 	// allowing to run code after the namespace creation but before the process starts
-	cmd := reexec.Command("nsInit", rootfsPath)
-	command.SetupProcessEnv(cmd)
-	command.SetupNewNamespaces(cmd)
+	cmd := command.NewReexecCommand("nsInit", rootfsPath)
 
 	// syscalls here
 	// 1) clone: creates process
