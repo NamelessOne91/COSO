@@ -2,9 +2,11 @@ package namespaces
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 
 	"github.com/NamelessOne91/coso/command"
 	"github.com/NamelessOne91/coso/filesystem"
@@ -32,6 +34,12 @@ func InitNamespaces() {
 		os.Exit(1)
 	}
 
+	// hold launching /bin/sh untill the network is ready
+	if err := waitForNetwork(); err != nil {
+		fmt.Printf("Error waiting for network - %s\n", err)
+		os.Exit(1)
+	}
+
 	nsRun()
 }
 
@@ -44,5 +52,33 @@ func nsRun() {
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Error running the /bin/sh command - %s\n", err)
 		os.Exit(1)
+	}
+}
+
+// waitForNetwork checks for up to 3 seconds if a new network interface has been created
+//
+// After the namespaces have been created, a veth interface should appear
+func waitForNetwork() error {
+	maxWait := time.Second * 3
+	checkInterval := time.Second
+	timeStarted := time.Now()
+
+	for {
+		interfaces, err := net.Interfaces()
+		if err != nil {
+			return err
+		}
+
+		// pretty basic check ...
+		// > 1 as a lo device will already exist
+		if len(interfaces) > 1 {
+			return nil
+		}
+
+		if time.Since(timeStarted) > maxWait {
+			return fmt.Errorf("timeout after %s waiting for network", maxWait)
+		}
+
+		time.Sleep(checkInterval)
 	}
 }
