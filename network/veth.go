@@ -6,6 +6,14 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+// VethManager provides the necessary methods to createa and destroy a pair of veth devices, plus
+// one to move one veth to another namespace
+type VethManager interface {
+	Create(hostVethName, containerVethName string) (*net.Interface, *net.Interface, error)
+	MoveToNetworkNamespace(containerVeth *net.Interface, pid int) error
+	Remove(vethName string) error
+}
+
 // Veth represents a virtual Ethernet device pair. Veth devices are always created in interconnected pairs.
 //
 // Veth devices can act as a tunnel between network namespaces to create a bridge to a
@@ -54,6 +62,20 @@ func (v *Veth) MoveToNetworkNamespace(containerVeth *net.Interface, pid int) err
 
 	// move veth to container namespace
 	return netlink.LinkSetNsPid(containerVethLink, pid)
+}
+
+// Remove deletes the veth interface with the given name
+func (v *Veth) Remove(vethName string) error {
+	veth, err := netlink.LinkByName(vethName)
+	if err != nil {
+		return err
+	}
+
+	if err := netlink.LinkDel(veth); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // vethInterfacesByName retrieves and returns the pair of veth devices with the given names
