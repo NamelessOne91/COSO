@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -92,13 +93,11 @@ func MountProc(newroot string) error {
 // VerifyRootfsExists checks a valid root filesystem to use as lower layer has been provided
 func VerifyRootfsExists(rootfsPath string) {
 	if _, err := os.Stat(rootfsPath); os.IsNotExist(err) {
-		errorMsg := fmt.Sprintf(
-			`"%s" does not exist.\nPlease create this directory and unpack a suitable root filesystem inside it.\n
-			You can run the following command to set it up with the provided Alpine filesystem for x86_64 architecture:\nmake fssetup`,
-			rootfsPath,
-		)
+		sb := strings.Builder{}
+		sb.WriteString(fmt.Sprintf("\n'%s' does not exist.\nPlease create this directory and unpack a suitable root filesystem inside it.\n", rootfsPath))
+		sb.WriteString("You can run the following command to set it up with the provided Alpine filesystem for x86_64 architecture:\n\nmake fssetup\n")
 
-		fmt.Println(errorMsg)
+		fmt.Println(sb.String())
 		os.Exit(1)
 	}
 }
