@@ -6,12 +6,15 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+// Bridge represents a Linux bridge network interface
 type Bridge struct{}
 
 func NewBridge() *Bridge {
 	return &Bridge{}
 }
 
+// Create cretes a new bridge network interface and returns it.
+// The bridge is immediatly set to 'up' once created (aka, is active)
 func (b *Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
 	// check if the bridge already exists
 	if interfaceExists(name) {
