@@ -6,7 +6,8 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-// BridgeManager provides the necessary methods to create, destroy and attach a veth interface to a Linux bridge device
+// BridgeManager provides the necessary methods to create and destroy a Linux bridge device destroy, plus
+// one to attach a veth device to a bridge device
 type BridgeManager interface {
 	Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error)
 	Attach(bridge, hostVeth *net.Interface) error
