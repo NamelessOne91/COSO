@@ -22,7 +22,7 @@ func VerifyCosonetExists(cosonetPath string) {
 		sb.WriteString(fmt.Sprintf("Unable to find the netsetgo binary at '%s'.\n", cosonetPath))
 		sb.WriteString("cosonet is an external binary used to configure networking.\n")
 		sb.WriteString("You must build cosonet, chown it to the root user and apply the setuid bit.\n")
-		sb.WriteString("This can be done as follows:\n\nmake netsetup\n")
+		sb.WriteString("This can be done as follows:\n\nmake net-setup\n")
 
 		fmt.Println(sb.String())
 		os.Exit(1)

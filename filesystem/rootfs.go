@@ -94,8 +94,10 @@ func MountProc(newroot string) error {
 func VerifyRootfsExists(rootfsPath string) {
 	if _, err := os.Stat(rootfsPath); os.IsNotExist(err) {
 		sb := strings.Builder{}
-		sb.WriteString(fmt.Sprintf("\n'%s' does not exist.\nPlease create this directory and unpack a suitable root filesystem inside it.\n", rootfsPath))
-		sb.WriteString("You can run the following command to set it up with the provided Alpine filesystem for x86_64 architecture:\n\nmake fssetup\n")
+		sb.WriteString(fmt.Sprintf("\n'%s' does not exist.\n", rootfsPath))
+		sb.WriteString("Please create this directory and unpack a suitable root filesystem inside it.\n")
+		sb.WriteString("You can run the following command to set it up with the provided Alpine filesystem for x86_64 architecture:")
+		sb.WriteString("\n\nmake fs-setup\n")
 
 		fmt.Println(sb.String())
 		os.Exit(1)
