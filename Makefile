@@ -15,7 +15,7 @@ net-setup:
 	@echo "Done!"
 
 build:
-	@go build -o ./bin/coso
+	@cd cmd/coso/ && go build -o ../../bin/coso
 
 run: build
 	@./bin/coso
