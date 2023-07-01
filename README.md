@@ -41,6 +41,6 @@ You can modify the 2 above mentioned paths with the following flags
 | Flag | Type | Default | Meaning
 | :---:|:--:|:--:|:--|
 | rootfs | string | /tmp/coso/rootfs | path to the root filesystem |
-| cosonet | string | /usr/local/bin/cosonet | path to the executable which will handle the setup of  network devices |
+| network | string | /usr/local/bin/cosonet | path to the executable which will handle the setup of  network devices |
 
 

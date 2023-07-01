@@ -21,13 +21,13 @@ func init() {
 }
 
 func main() {
-	var rootfsPath, cosonetPath string
+	var rootfsPath, networkPath string
 	flag.StringVar(&rootfsPath, "rootfs", filesystem.DefaultRootfsPath, "Path to the root filesystem to use")
-	flag.StringVar(&cosonetPath, "cosonet", network.DefaultCosonetPath, "Path to the cosonet binary")
+	flag.StringVar(&networkPath, "network", network.DefaultCosonetPath, "Path to the executable handling network devices")
 	flag.Parse()
 
 	filesystem.VerifyRootfsExists(rootfsPath)
-	network.VerifyCosonetExists(cosonetPath)
+	network.VerifyNetworkManagerExists(networkPath)
 
 	// rexec is used to bypass forking limitations of Go
 	// allowing to run code after the namespace creation but before the process starts
@@ -47,9 +47,9 @@ func main() {
 	pid := fmt.Sprintf("%d", cmd.Process.Pid)
 
 	// executed in the host namespace
-	cosoNetCmd := exec.Command(cosonetPath, "-pid", pid)
+	cosoNetCmd := exec.Command(networkPath, "-pid", pid)
 	if err := cosoNetCmd.Run(); err != nil {
-		fmt.Printf("Error running cosonet - %s\n", err)
+		fmt.Printf("Error running external network manager (default: cosonet) - %s\n", err)
 		os.Exit(1)
 	}
 
