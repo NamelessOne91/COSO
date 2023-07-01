@@ -6,14 +6,21 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-// Bridge represents a Linux bridge network interface
+// BridgeManager provides the necessary methods to create, destroy and attach a veth interface to a Linux bridge device
+type BridgeManager interface {
+	Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error)
+	Attach(bridge, hostVeth *net.Interface) error
+	Remove()
+}
+
+// Bridge represents a Linux bridge network device manager
 type Bridge struct{}
 
 func NewBridge() *Bridge {
 	return &Bridge{}
 }
 
-// Create cretes a new bridge network interface and returns it.
+// Create creates a new bridge network device and returns it.
 // The bridge is immediatly set to 'up' once created (aka, is active)
 func (b *Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
 	// check if the bridge already exists
@@ -58,4 +65,18 @@ func (b *Bridge) Attach(bridge, hostVeth *net.Interface) error {
 	}
 	// attach veth to bridge
 	return netlink.LinkSetMaster(hostVethLink, bridgeLink.(*netlink.Bridge))
+}
+
+// Remove deletes the bridge device with the given name
+func (b *Bridge) Remove(bridgeName string) error {
+	bridge, err := netlink.LinkByName(bridgeName)
+	if err != nil {
+		return err
+	}
+
+	if err := netlink.LinkDel(bridge); err != nil {
+		return err
+	}
+
+	return nil
 }
