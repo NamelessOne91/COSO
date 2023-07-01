@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/NamelessOne91/coso/command"
 	"github.com/NamelessOne91/coso/filesystem"
 	"github.com/NamelessOne91/coso/namespaces"
+	"github.com/NamelessOne91/coso/network"
 )
 
 func init() {
@@ -19,11 +21,13 @@ func init() {
 }
 
 func main() {
-	var rootfsPath string
+	var rootfsPath, cosonetPath string
 	flag.StringVar(&rootfsPath, "rootfs", filesystem.DefaultRootfsPath, "Path to the root filesystem to use")
+	flag.StringVar(&cosonetPath, "cosonet", network.DefaultCosonetPath, "Path to the cosonet binary")
 	flag.Parse()
 
 	filesystem.VerifyRootfsExists(rootfsPath)
+	network.VerifyCosonetExists(cosonetPath)
 
 	// rexec is used to bypass forking limitations of Go
 	// allowing to run code after the namespace creation but before the process starts
@@ -33,8 +37,23 @@ func main() {
 	// 1) clone: creates process
 	// 2) setns: allows the calling process to join an existing namespace
 	// 3) unshare: moves the calling process to a new namespace
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Error running the /bin/sh command - %s\n", err)
+
+	// not blocking
+	if err := cmd.Start(); err != nil {
+		fmt.Printf("Error starting the reexec.Command - %s\n", err)
 		os.Exit(1)
+	}
+	// child process PID
+	pid := fmt.Sprintf("%d", cmd.Process.Pid)
+
+	// executed in the host namespace
+	cosoNetCmd := exec.Command(cosonetPath, "-pid", pid)
+	if err := cosoNetCmd.Run(); err != nil {
+		fmt.Printf("Error running cosonet - %s\n", err)
+		os.Exit(1)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		fmt.Printf("Error waiting for reexec.Command - %s\n", err)
 	}
 }
