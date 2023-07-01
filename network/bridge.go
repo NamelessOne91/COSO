@@ -43,3 +43,19 @@ func (b *Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interfa
 
 	return net.InterfaceByName(name)
 }
+
+// Attach attaches the given veth device to the given bridge device
+func (b *Bridge) Attach(bridge, hostVeth *net.Interface) error {
+	// find bridge device
+	bridgeLink, err := netlink.LinkByName(bridge.Name)
+	if err != nil {
+		return err
+	}
+	//find host veth device
+	hostVethLink, err := netlink.LinkByName(hostVeth.Name)
+	if err != nil {
+		return err
+	}
+	// attach veth to bridge
+	return netlink.LinkSetMaster(hostVethLink, bridgeLink.(*netlink.Bridge))
+}
