@@ -11,7 +11,7 @@ import (
 type BridgeManager interface {
 	Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error)
 	Attach(bridge, hostVeth *net.Interface) error
-	Remove()
+	Remove(name string) error
 }
 
 // Bridge represents a Linux bridge network device manager
