@@ -35,10 +35,10 @@ type NetworkManager struct {
 	containerManager Manager
 }
 
-func NewNetworkManager(hm, cm Manager) *NetworkManager {
+func NewNetworkManager(hostManager, containerManager Manager) *NetworkManager {
 	return &NetworkManager{
-		hostManager:      hm,
-		containerManager: cm,
+		hostManager:      hostManager,
+		containerManager: containerManager,
 	}
 }
 
@@ -73,7 +73,7 @@ func VerifyNetworkManagerExists(executablePath string) {
 	if _, err := os.Stat(executablePath); os.IsNotExist(err) {
 		sb := strings.Builder{}
 		sb.WriteString(fmt.Sprintf("Unable to find the executable at '%s'.\n", executablePath))
-		sb.WriteString("an external binary used to configure networking is needed.\n")
+		sb.WriteString("An external binary used to configure networking is needed.\n")
 		sb.WriteString("You must build it, chown it to the root user and apply the setuid bit.\n")
 		sb.WriteString("This can be done for the provided cosonet tool as follows:\n\nmake net-setup\n")
 

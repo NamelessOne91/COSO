@@ -30,38 +30,36 @@ func main() {
 	flag.IntVar(&pid, "pid", defaultPid, "pid of a process in the container's network namespace")
 	flag.Parse()
 
-	// create bridge device
 	bridge := network.NewBridge()
+	veth := network.NewVeth()
+
+	hostManager := network.NewHostNetworkManager(bridge, veth)
+	containerManager := network.NewContainerNetworkManager()
+
 	bridgeIP, bridgeSubnet, err := net.ParseCIDR(bridgeAddress)
 	if err != nil {
-		fmt.Printf("Error during bridge configuration - %s\n", err)
+		fmt.Printf("Error trying to parse bridge CIDR - %s\n", err)
 		os.Exit(1)
 	}
 
-	bridgeDevice, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+	containerIP, _, err := net.ParseCIDR(containerAddress)
 	if err != nil {
-		fmt.Printf("Error creating bridge - %s", err)
+		fmt.Printf("Error trying to parse container CIDR - %s\n", err)
 		os.Exit(1)
 	}
 
-	// create veth pair
-	veth := network.Veth{}
-	hostVeth, containerVeth, err := veth.Create(vethNamePrefix+defaultVethName, vethNamePrefix+defaultVethPeerName)
-	if err != nil {
-		fmt.Printf("Error creating veth pair - %s\n", err)
-		os.Exit(1)
+	config := network.NetworkConfig{
+		BridgeName:        bridgeName,
+		BridgeIP:          bridgeIP,
+		ContainerIP:       containerIP,
+		Subnet:            bridgeSubnet,
+		HostVethName:      defaultVethPrefix + defaultVethName,
+		ContainerVethName: defaultVethPrefix + defaultVethPeerName,
 	}
 
-	// attach host veth to the bridge
-	if err = bridge.Attach(bridgeDevice, hostVeth); err != nil {
-		fmt.Printf("Error attaching host veth to bridge - %s\n", err)
+	networkmanager := network.NewNetworkManager(hostManager, containerManager)
+	if err := networkmanager.Configure(config, pid); err != nil {
+		fmt.Printf("Error trying to configure network decies - %s\n", err)
 		os.Exit(1)
 	}
-
-	// move veth to new namespace
-	if err = veth.MoveToNetworkNamespace(containerVeth, pid); err != nil {
-		fmt.Printf("Error moving container veth in namespace - %s\n", err)
-		os.Exit(1)
-	}
-
 }
