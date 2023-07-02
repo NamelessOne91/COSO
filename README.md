@@ -8,6 +8,15 @@ Containerization Oriented Standard Operations
 
 - 30/06/23 - project start
 
+Supported Namespaces:
+ - PID
+ - Network
+ - UTS - aka hostname
+ - User
+ - Mount 
+ - IPC
+ - Cgroups (work in progress)
+
 ## Aim
 
 COSO is mainly a study project to apply teachings on Linux containers internals.
@@ -29,7 +38,7 @@ Or just `make run` and follow the error messages :)
 
 IF the setup has been successfull, you should be able to run COSO with `make run`.
 
-# Customisazation
+# Customization
 
 COSO expects a path to a root filesystem, to use as lower layer, and to an executable which can handle network devices creation.
 COSO will execute the following call when trying to setup network devices for the new process (running in a separate namespace):
