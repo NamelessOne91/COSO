@@ -10,7 +10,12 @@ import (
 	"github.com/vishvananda/netns"
 )
 
+// ContainerNetworkManager gives access to methods to configure a container's network namespace devices
 type ContainerNetworkManager struct{}
+
+func NewContainerNetworkManager() *ContainerNetworkManager {
+	return &ContainerNetworkManager{}
+}
 
 // Configure configures the container's network devices in a thread safe way.
 //
