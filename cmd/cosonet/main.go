@@ -12,7 +12,7 @@ import (
 const (
 	defaultBridgeName       = "coso-bridge"
 	defaultBridgeAddress    = "10.10.10.1/24"
-	defaultVethPrefix       = "coso-veth"
+	defaultVethPrefix       = "coso-veth-"
 	defaultVethName         = "host"
 	defaultVethPeerName     = "peer"
 	defaultContainerAddress = "10.10.10.2/24"
@@ -59,7 +59,7 @@ func main() {
 
 	networkmanager := network.NewNetworkManager(hostManager, containerManager)
 	if err := networkmanager.Configure(config, pid); err != nil {
-		fmt.Printf("Error trying to configure network decies - %s\n", err)
+		fmt.Printf("Error trying to configure network devices - %s\n", err)
 		os.Exit(1)
 	}
 }

@@ -48,11 +48,13 @@ func (nm *NetworkManager) Configure(netConfig NetworkConfig, pid int) error {
 		fmt.Printf("Error configuring host network - %s\n", err)
 		os.Exit(1)
 	}
+	fmt.Println("Host's network configured")
 
 	if err := nm.configureContainer(netConfig, pid); err != nil {
 		fmt.Printf("Error configuring container network - %s\n", err)
 		os.Exit(1)
 	}
+	fmt.Println("Container's network configured")
 
 	return nil
 }
