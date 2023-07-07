@@ -33,10 +33,19 @@ You can run  `make fs-setup`  and  `make net-setup`  to configure the above.
 
 Or just `make run` and follow the error messages :)
 
-
 ## Running coso
 
 IF the setup has been successfull, you should be able to run COSO with `make run`.
+
+Note that if you have previosly installed Docker and are using the default network manager (cosonet), Internet access in the created network namespace may not be available as a result of Docker changing the iptables FORWARD chain policy to DROP.
+
+To verify this is the case, use the command
+
+`sudo iptables -L`
+
+To enable packets forwarding to the custom interfaces handled by COSO, you can run the command
+
+`sudo iptables -P FORWARd ACCEPT`
 
 # Customization
 
