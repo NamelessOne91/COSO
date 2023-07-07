@@ -47,8 +47,9 @@ func main() {
 	pid := fmt.Sprintf("%d", cmd.Process.Pid)
 
 	// executed in the host namespace
-	cosoNetCmd := exec.Command(networkPath, "-pid", pid)
-	if err := cosoNetCmd.Run(); err != nil {
+	netManagerCmd := exec.Command(networkPath, "-pid", pid)
+	if out, err := netManagerCmd.CombinedOutput(); err != nil {
+		fmt.Print(string(out))
 		fmt.Printf("Error running external network manager (default: cosonet) - %s\n", err)
 		os.Exit(1)
 	}
