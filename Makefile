@@ -1,3 +1,5 @@
+export GO_EXECUTABLE_PATH := $(shell which go)
+
 fs-setup:
 	@mkdir -p /tmp/coso/rootfs
 	@tar -C /tmp/coso/rootfs -xzf assets/alpine-minirootfs-3.18.2-x86_64.tar.gz
@@ -21,4 +23,5 @@ run: build
 	@./bin/coso
 
 test:
-	go test ./...
+	@echo $$GO_EXECUTABLE_PATH
+	@sudo $$GO_EXECUTABLE_PATH test -v ./...
