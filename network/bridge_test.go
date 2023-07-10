@@ -38,7 +38,12 @@ func TestBridgeCreate(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to create bridge with error: %s", err)
 	}
-	defer cleanup(bridgeName)
+	defer func() {
+		err := cleanup(bridgeName)
+		if err != nil {
+			t.Errorf("Failed to cleanup bridge device with error: %s", err)
+		}
+	}()
 
 	// should return the same device if a bridge with the given name already exists
 	bridgeInterface, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
