@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"testing"
 
@@ -82,5 +83,48 @@ func TestBridgeCreate(t *testing.T) {
 	if bridgeAddresses[0].String() != bridgeCIDR {
 		t.Errorf("Expected bridge address to be %s - got %s", bridgeCIDR, bridgeAddresses[0].String())
 	}
+}
 
+func TestBridgeAttach(t *testing.T) {
+	bridge := NewBridge()
+	veth := NewVeth()
+
+	bridgeIP, bridgeSubnet, err := net.ParseCIDR(bridgeCIDR)
+	if err != nil {
+		t.Errorf("Failed to parse bridge CIDR with error: %s", err)
+	}
+
+	bridgeI, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+	if err != nil {
+		t.Errorf("Failed to create bridge with error: %s", err)
+	}
+	defer func() {
+		err := cleanup(bridgeName)
+		if err != nil {
+			t.Errorf("Failed to cleanup bridge device with error: %s", err)
+		}
+	}()
+
+	hostVethI, _, err := veth.Create(testHostVeth, testPeerVeth)
+	if err != nil {
+		t.Errorf("Failed to create veth pair with error: %s", err)
+	}
+	defer func() {
+		err := cleanup(testHostVeth)
+		if err != nil {
+			t.Errorf("Failed to cleanup veth devices with error: %s", err)
+		}
+	}()
+
+	err = bridge.Attach(bridgeI, hostVethI)
+	if err != nil {
+		t.Errorf("Failed to attach veth to bridge with error: %s", err)
+	}
+
+	// this should now exists
+	confiFilePath := fmt.Sprintf("/sys/class/net/%s/master", testHostVeth)
+	_, err = os.Stat(confiFilePath)
+	if err != nil {
+		t.Errorf("Failed to retrieve %s with error: %s", confiFilePath, err)
+	}
 }
