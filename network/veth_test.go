@@ -1,10 +1,13 @@
 package network
 
 import (
-	"bytes"
-	"fmt"
 	"os/exec"
-	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
+	"github.com/vishvananda/netlink"
 )
 
 const (
@@ -12,43 +15,79 @@ const (
 	testPeerVeth = "test-peer-veth"
 )
 
-func TestVethCreate(t *testing.T) {
-	veth := NewVeth()
+var _ = Describe("Veth", func() {
+	var (
+		veth *Veth
+	)
 
-	firstHostVI, firstContainerVI, err := veth.Create(testHostVeth, testPeerVeth)
-	if err != nil {
-		t.Errorf("Failed to create veth pair with error: %s", err)
-	}
-	defer func() {
-		err := cleanup(testHostVeth)
-		if err != nil {
-			t.Errorf("Failed to cleanup veth devices with error: %s", err)
-		}
-	}()
+	BeforeEach(func() {
+		veth = NewVeth()
+	})
 
-	// should return the same device if a veth with the given name already exists
-	hostVeth, containerVeth, err := veth.Create(testHostVeth, testPeerVeth)
-	if err != nil {
-		t.Errorf("Expected no error when veth with the same name exists - got: %s", err)
-	}
-	if firstHostVI.Name != hostVeth.Name || firstContainerVI.Name != containerVeth.Name {
-		t.Errorf("Expected veth interfaces with the same name - got host %s and %s - container %s and %s", firstHostVI.Name, hostVeth.Name, firstContainerVI.Name, containerVeth.Name)
-	}
+	AfterEach(func() {
+		Expect(cleanup(testHostVeth)).To(Succeed())
+	})
 
-	// correct veth names
-	if hostVeth.Name != testHostVeth || containerVeth.Name != testPeerVeth {
-		t.Errorf("Expected veth devices to have name %s and %s - got %s and %s", testHostVeth, testPeerVeth, hostVeth.Name, containerVeth.Name)
-	}
+	Describe("Create", func() {
+		It("creates a veth pair using the provided names", func() {
+			hostVeth, containerVeth, err := veth.Create(testHostVeth, testPeerVeth)
+			Expect(err).NotTo(HaveOccurred())
 
-	// device is in 'UP' state
-	var stdout bytes.Buffer
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("ip link list %s", testHostVeth))
-	cmd.Stdout = &stdout
-	err = cmd.Run()
-	if err != nil {
-		t.Errorf("Error executing bash command to check veth's state: %s", err)
-	}
-	if bytes.Contains(stdout.Bytes(), []byte("state DOWN")) {
-		t.Error("Veth device is in 'DOWN' state")
-	}
-}
+			Expect(hostVeth.Name).To(Equal(testHostVeth))
+			Expect(containerVeth.Name).To(Equal(testPeerVeth))
+		})
+
+		It("brings the veth link up", func() {
+			_, _, err := veth.Create(testHostVeth, testPeerVeth)
+			Expect(err).NotTo(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			cmd := exec.Command("sh", "-c", "ip link show "+testHostVeth)
+			_, err = gexec.Start(cmd, stdout, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Consistently(stdout).ShouldNot(gbytes.Say(",DOWN"))
+		})
+
+		Context("when a veth pair using the provided name prefix already exists", func() {
+			BeforeEach(func() {
+				_, _, err := veth.Create(testHostVeth, testPeerVeth)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("doesn't error", func() {
+				_, _, err := veth.Create(testHostVeth, testPeerVeth)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("returns the host and container veths", func() {
+				hostVeth, containerVeth, err := veth.Create(testHostVeth, testPeerVeth)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(hostVeth.Name).To(Equal(testHostVeth))
+				Expect(containerVeth.Name).To(Equal(testPeerVeth))
+			})
+
+			Context("and the link is already up", func() {
+				BeforeEach(func() {
+					link, err := netlink.LinkByName(testHostVeth)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(netlink.LinkSetUp(link)).To(Succeed())
+				})
+
+				It("doesn't error", func() {
+					_, _, err := veth.Create(testHostVeth, testPeerVeth)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("returns the host and container veths", func() {
+					hostVeth, containerVeth, err := veth.Create(testHostVeth, testPeerVeth)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(hostVeth.Name).To(Equal(testHostVeth))
+					Expect(containerVeth.Name).To(Equal(testPeerVeth))
+				})
+			})
+		})
+	})
+})

@@ -1,20 +1,167 @@
 package network
 
 import (
-	"bytes"
 	"fmt"
 	"net"
-	"os"
 	"os/exec"
-	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 
 	"github.com/vishvananda/netlink"
 )
 
-const (
-	bridgeName = "test-bridge"
-	bridgeCIDR = "10.10.10.1/24"
-)
+var _ = Describe("Bridge", func() {
+	var (
+		bridge       *Bridge
+		bridgeName   string
+		bridgeIP     net.IP
+		bridgeSubnet *net.IPNet
+	)
+
+	BeforeEach(func() {
+		var err error
+		bridge = NewBridge()
+		bridgeName = "test-bridge"
+		bridgeIP, bridgeSubnet, err = net.ParseCIDR("10.10.10.1/24")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		Expect(cleanup(bridgeName)).To(Succeed())
+	})
+
+	Describe("Create", func() {
+		It("creates a bridge with the provided name", func() {
+			bridgeInterface, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(bridgeInterface.Name).To(Equal(bridgeName))
+		})
+
+		It("brings the bridge link up", func() {
+			_, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+			Expect(err).NotTo(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			cmd := exec.Command("sh", "-c", "ip link list "+bridgeName)
+			_, err = gexec.Start(cmd, stdout, GinkgoWriter)
+			Expect(err).NotTo(HaveOccurred())
+
+			Consistently(stdout).ShouldNot(gbytes.Say("DOWN"))
+		})
+
+		It("assigns the provided address to the bridge", func() {
+			bridgeInterface, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+			Expect(err).NotTo(HaveOccurred())
+
+			bridgeAddresses, err := bridgeInterface.Addrs()
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(len(bridgeAddresses)).To(Equal(2))
+			Expect(bridgeAddresses[0].String()).To(Equal("10.10.10.1/24"))
+		})
+
+		Context("when a bridge with the provided name already exists", func() {
+			BeforeEach(func() {
+				_, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("doesn't error", func() {
+				_, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("returns the bridge", func() {
+				bridgeInterface, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(bridgeInterface.Name).To(Equal(bridgeName))
+			})
+
+			Context("and the link is already up", func() {
+				BeforeEach(func() {
+					link, err := netlink.LinkByName(bridgeName)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(netlink.LinkSetUp(link)).To(Succeed())
+				})
+
+				It("doesn't error", func() {
+					_, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("returns the bridge", func() {
+					bridgeInterface, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(bridgeInterface.Name).To(Equal(bridgeName))
+				})
+			})
+		})
+
+	})
+
+	Describe("Attach", func() {
+		var (
+			veth              *Veth
+			bridgeInterface   *net.Interface
+			hostVethInterface *net.Interface
+		)
+
+		BeforeEach(func() {
+			var err error
+
+			bridgeInterface, err = bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
+			Expect(err).NotTo(HaveOccurred())
+
+			veth = NewVeth()
+			hostVethInterface, _, err = veth.Create(testHostVeth, testPeerVeth)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			Expect(cleanup(bridgeName)).To(Succeed())
+			Expect(cleanup(testHostVeth)).To(Succeed())
+		})
+
+		It("attaches the provided veth to the provided bridge", func() {
+			err := bridge.Attach(bridgeInterface, hostVethInterface)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(fmt.Sprintf("/sys/class/net/%s/master", testHostVeth)).To(BeAnExistingFile())
+		})
+
+		Context("when the bridge can't be found", func() {
+			BeforeEach(func() {
+				Expect(cleanup(bridgeName)).To(Succeed())
+			})
+
+			It("returns a descriptive error", func() {
+				err := bridge.Attach(bridgeInterface, hostVethInterface)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).To(Equal("Link not found"))
+			})
+		})
+
+		Context("when the veth can't be found", func() {
+			BeforeEach(func() {
+				Expect(cleanup(testHostVeth)).To(Succeed())
+			})
+
+			It("returns a descriptive error", func() {
+				err := bridge.Attach(bridgeInterface, hostVethInterface)
+				Expect(err).To(HaveOccurred())
+
+				Expect(err.Error()).To(Equal("Link not found"))
+			})
+		})
+	})
+})
 
 func cleanup(name string) error {
 	if _, err := net.InterfaceByName(name); err == nil {
@@ -25,106 +172,4 @@ func cleanup(name string) error {
 		return netlink.LinkDel(link)
 	}
 	return nil
-}
-
-func TestBridgeCreate(t *testing.T) {
-	bridge := NewBridge()
-
-	bridgeIP, bridgeSubnet, err := net.ParseCIDR(bridgeCIDR)
-	if err != nil {
-		t.Errorf("Failed to parse bridge CIDR with error: %s", err)
-	}
-
-	firstBI, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
-	if err != nil {
-		t.Errorf("Failed to create bridge with error: %s", err)
-	}
-	defer func() {
-		err := cleanup(bridgeName)
-		if err != nil {
-			t.Errorf("Failed to cleanup bridge device with error: %s", err)
-		}
-	}()
-
-	// should return the same device if a bridge with the given name already exists
-	bridgeInterface, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
-	if err != nil {
-		t.Errorf("Expected no error when bridge with the same name exists - got: %s", err)
-	}
-	if firstBI.Name != bridgeInterface.Name {
-		t.Errorf("Expected bridge interface with the same name - got %s and %s", firstBI.Name, bridgeInterface.Name)
-	}
-
-	// correct name
-	if bridgeInterface.Name != bridgeName {
-		t.Errorf("Expected bridge interface name to be %s - got %s", bridgeName, bridgeInterface.Name)
-	}
-
-	// device is in 'UP' state
-	var stdout bytes.Buffer
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("ip link list %s", bridgeName))
-	cmd.Stdout = &stdout
-	err = cmd.Run()
-	if err != nil {
-		t.Errorf("Error executing bash command to check bridge's state: %s", err)
-	}
-	if bytes.Contains(stdout.Bytes(), []byte("state DOWN")) {
-		t.Error("Bridge device is in 'DOWN' state")
-	}
-
-	// check bridge address
-	bridgeAddresses, err := bridgeInterface.Addrs()
-	if err != nil {
-		t.Errorf("Error checking bridge device address: %s", err)
-	}
-	if len(bridgeAddresses) != 2 {
-		t.Errorf("Expected len(bridgeAddreses) to be 2 - got %d", len(bridgeAddresses))
-	}
-	if bridgeAddresses[0].String() != bridgeCIDR {
-		t.Errorf("Expected bridge address to be %s - got %s", bridgeCIDR, bridgeAddresses[0].String())
-	}
-}
-
-func TestBridgeAttach(t *testing.T) {
-	bridge := NewBridge()
-	veth := NewVeth()
-
-	bridgeIP, bridgeSubnet, err := net.ParseCIDR(bridgeCIDR)
-	if err != nil {
-		t.Errorf("Failed to parse bridge CIDR with error: %s", err)
-	}
-
-	bridgeI, err := bridge.Create(bridgeName, bridgeIP, bridgeSubnet)
-	if err != nil {
-		t.Errorf("Failed to create bridge with error: %s", err)
-	}
-	defer func() {
-		err := cleanup(bridgeName)
-		if err != nil {
-			t.Errorf("Failed to cleanup bridge device with error: %s", err)
-		}
-	}()
-
-	hostVethI, _, err := veth.Create(testHostVeth, testPeerVeth)
-	if err != nil {
-		t.Errorf("Failed to create veth pair with error: %s", err)
-	}
-	defer func() {
-		err := cleanup(testHostVeth)
-		if err != nil {
-			t.Errorf("Failed to cleanup veth devices with error: %s", err)
-		}
-	}()
-
-	err = bridge.Attach(bridgeI, hostVethI)
-	if err != nil {
-		t.Errorf("Failed to attach veth to bridge with error: %s", err)
-	}
-
-	// this should now exists
-	confiFilePath := fmt.Sprintf("/sys/class/net/%s/master", testHostVeth)
-	_, err = os.Stat(confiFilePath)
-	if err != nil {
-		t.Errorf("Failed to retrieve %s with error: %s", confiFilePath, err)
-	}
 }
