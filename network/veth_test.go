@@ -1,7 +1,12 @@
 package network
 
 import (
+	"fmt"
+	"net"
+	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -11,8 +16,9 @@ import (
 )
 
 const (
-	testHostVeth = "test-veth"
-	testPeerVeth = "test-peer-veth"
+	testHostVeth     = "test-veth"
+	testPeerVeth     = "test-peer-veth"
+	netNamespaceName = "testNetNs"
 )
 
 var _ = Describe("Veth", func() {
@@ -90,4 +96,96 @@ var _ = Describe("Veth", func() {
 			})
 		})
 	})
+
+	Describe("MoveToNetworkNamespace", func() {
+		var (
+			containerVeth *net.Interface
+			parentPid     int
+			pid           int
+		)
+
+		BeforeEach(func() {
+			var err error
+			_, containerVeth, err = veth.Create(testHostVeth, testPeerVeth)
+			Expect(err).NotTo(HaveOccurred())
+
+			createNetNamespace(netNamespaceName)
+			parentPid, pid = runCmdInNetNamespace(netNamespaceName, "sleep 1000")
+		})
+
+		AfterEach(func() {
+			killCmd(parentPid)
+			destroyNetNamespace(netNamespaceName)
+		})
+
+		It("moves the container's side of the veth into the namespace identified by the pid", func() {
+			err := veth.MoveToNetworkNamespace(containerVeth, pid)
+			Expect(err).NotTo(HaveOccurred())
+
+			ensureOutputForCommand(fmt.Sprintf("ip netns exec %s ip addr", netNamespaceName), testPeerVeth)
+		})
+
+		Context("when the veth doesn't exist", func() {
+			It("returns a descriptive error", func() {
+				nonexistentVeth := &net.Interface{Name: "nonexistentVeth"}
+				err := veth.MoveToNetworkNamespace(nonexistentVeth, pid)
+
+				Expect(err.Error()).To(ContainSubstring("Link not found"))
+			})
+		})
+
+		Context("when the process doesn't exist", func() {
+			It("returns a descriptive error", func() {
+				err := veth.MoveToNetworkNamespace(containerVeth, -1)
+
+				Expect(err.Error()).To(ContainSubstring("no such process"))
+			})
+		})
+	})
 })
+
+func createNetNamespace(name string) {
+	cmdString := fmt.Sprintf("ip netns add %s", name)
+	cmd := exec.Command("sh", "-c", cmdString)
+	Expect(cmd.Run()).To(Succeed())
+}
+
+func destroyNetNamespace(name string) {
+	cmdString := fmt.Sprintf("ip netns delete %s", name)
+	cmd := exec.Command("sh", "-c", cmdString)
+	Expect(cmd.Run()).To(Succeed())
+}
+
+func killCmd(pid int) {
+	process, err := os.FindProcess(pid)
+	Expect(err).NotTo(HaveOccurred())
+
+	Expect(process.Kill()).To(Succeed())
+}
+
+func runCmdInNetNamespace(netNamespaceName string, cmdPathAndArgs string) (int, int) {
+	cmdString := fmt.Sprintf("ip netns exec %s %s", netNamespaceName, cmdPathAndArgs)
+	cmd := exec.Command("sh", "-c", cmdString)
+	Expect(cmd.Start()).To(Succeed())
+
+	parentPid := cmd.Process.Pid
+
+	// super gross
+	cmd = exec.Command("sh", "-c", fmt.Sprintf("ps --ppid %d | tail -n 1 | awk '{print $1}'", parentPid))
+	pidBytes, err := cmd.Output()
+	Expect(err).NotTo(HaveOccurred())
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	Expect(err).NotTo(HaveOccurred())
+
+	return parentPid, pid
+}
+
+func ensureOutputForCommand(command, expectedOutput string) {
+	stdout := gbytes.NewBuffer()
+	cmd := exec.Command("sh", "-c", command)
+	_, err := gexec.Start(cmd, stdout, GinkgoWriter)
+	Expect(err).NotTo(HaveOccurred())
+
+	Eventually(stdout).Should(gbytes.Say(expectedOutput))
+}
