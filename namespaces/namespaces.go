@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/NamelessOne91/coso/cgroups"
 	"github.com/NamelessOne91/coso/command"
 	"github.com/NamelessOne91/coso/filesystem"
 )
@@ -16,6 +17,11 @@ import (
 // a child process in its own isolated namespace(s)
 func InitNamespaces() {
 	newrootPath := os.Args[1]
+
+	if err := cgroups.ConfigureCgroup(newrootPath, "10000"); err != nil {
+		fmt.Printf("Error creating Cgroups - %s\n", err)
+		os.Exit(1)
+	}
 
 	if err := filesystem.MountProc(newrootPath); err != nil {
 		fmt.Printf("Error mounting /proc - %s\n", err)
